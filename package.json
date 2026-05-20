@@ -1,0 +1,12 @@
+{
+  "name": "shopify-aliexpress-bot",
+  "version": "1.0.0",
+  "main": "shopify-aliexpress-bot.js",
+  "scripts": {
+    "start": "node shopify-aliexpress-bot.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "nodemailer": "^6.9.7"
+  }
+}
