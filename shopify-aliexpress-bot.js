@@ -22,8 +22,8 @@ function verifyShopifyWebhook(req) {
  
 async function sendEmail(order) {
   const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
+    port: 587,
+secure: false,
     secure: true,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
