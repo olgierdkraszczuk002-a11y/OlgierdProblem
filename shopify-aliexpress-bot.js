@@ -1,5 +1,4 @@
 const express = require("express");
-const nodemailer = require("nodemailer");
 const crypto = require("crypto");
  
 const app = express();
@@ -7,8 +6,7 @@ app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
  
 const SHOPIFY_SECRET = process.env.SHOPIFY_SECRET || "";
 const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL || "";
-const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
 const ALIEXPRESS_URL = process.env.ALIEXPRESS_URL || "https://www.aliexpress.com";
 const PORT = process.env.PORT || 3000;
  
@@ -21,13 +19,6 @@ function verifyShopifyWebhook(req) {
 }
  
 async function sendEmail(order) {
-  const transporter = nodemailer.createTransport({
-    port: 587,
-secure: false,
-    secure: true,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
- 
   const customer = order.shipping_address || order.billing_address || {};
   const items = order.line_items || [];
  
@@ -41,7 +32,7 @@ secure: false,
  
   const html = `
 <div style="font-family:sans-serif;max-width:600px;margin:auto">
-  <h2 style="color:#222">Nowe zamówienie #${order.order_number}</h2>
+  <h2 style="color:#222">Nowe zamówienie #${order.order_number || order.name}</h2>
   <div style="background:#f5f5f5;padding:16px;border-radius:8px;margin-bottom:16px">
     <strong>Klient:</strong> ${customer.first_name || ""} ${customer.last_name || ""}<br>
     <strong>Adres:</strong> ${customer.address1 || ""}, ${customer.city || ""} ${customer.zip || ""}, ${customer.country || ""}<br>
@@ -61,17 +52,29 @@ secure: false,
       Zamów na AliExpress →
     </a>
   </div>
-  <p style="color:#888;font-size:12px">Zamówienie #${order.order_number} | ${new Date().toLocaleString("pl-PL")}</p>
+  <p style="color:#888;font-size:12px">Zamówienie #${order.order_number || order.name} | ${new Date().toLocaleString("pl-PL")}</p>
 </div>`;
  
-  await transporter.sendMail({
-    from: `"Sklep Bot" <${SMTP_USER}>`,
-    to: NOTIFY_EMAIL,
-    subject: `Nowe zamówienie #${order.order_number} — złóż na AliExpress`,
-    html,
+  const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${SENDGRID_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: NOTIFY_EMAIL }] }],
+      from: { email: NOTIFY_EMAIL },
+      subject: `Nowe zamówienie #${order.order_number || order.name} — złóż na AliExpress`,
+      content: [{ type: "text/html", value: html }]
+    })
   });
  
-  console.log(`[OK] Email wysłany dla zamówienia #${order.order_number}`);
+  if (response.ok) {
+    console.log(`[OK] Email wysłany dla zamówienia #${order.order_number || order.name}`);
+  } else {
+    const err = await response.text();
+    console.error(`[ERROR] SendGrid: ${err}`);
+  }
 }
  
 app.post("/webhook/orders/create", async (req, res) => {
